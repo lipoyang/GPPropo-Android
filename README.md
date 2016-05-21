@@ -1,4 +1,4 @@
-GP Propo (Android版) 【工事中】
+GP Propo (Android版)
 =========
 
 ## 概要
