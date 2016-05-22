@@ -52,7 +52,7 @@ GPduinoに関する詳細は、[GPduino特設ページ](http://lipoyang.net/gpdu
 ## ファイル一覧
 
 * GPPropo/: プロポアプリのソース一式
-* GPduino/ : GPduinoのファームウェア(Arduino互換のスケッチ)
+* GPduinoR3/ : GPduinoのファームウェア(Arduino Pro Mini 3.3V 互換のスケッチ)
 * LICENSE: Apache Licence 2.0です
 * README.md これ
 
