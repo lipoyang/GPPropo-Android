@@ -49,7 +49,8 @@ static int cnt_runaway;
 #define LOW_BATTERY    512
 
 // 四輪操舵のモード
-static int g_mode_4ws;
+static int g_steer_pol_f;
+static int g_steer_pol_b;
 
 // サーボの調整
 static int g_servo_pol[3]; // 極性
@@ -195,7 +196,8 @@ void setup() {
     g_lr = 0;
     cnt_runaway = 0;
     Vbat_MovingAve.init();
-    g_mode_4ws = 0;
+    g_steer_pol_f = 1;
+    g_steer_pol_b = 0;
 }
 
 // メインループ
@@ -312,15 +314,28 @@ void SerialCom_callback(char* buff)
      */
     case 'T':
         // 4WSモード
-        if(buff[3] == '1'){
-            g_mode_4ws = 1;
+        switch(buff[3]){
+        case '0':// FRONT
+            g_steer_pol_f = 1;
+            g_steer_pol_b = 0;
+            break;
+        case '1':// COMMON
+            g_steer_pol_f = 1;
+            g_steer_pol_b = 1;
+            break;
+        case '2':// REVERSE
+            g_steer_pol_f = 1;
+            g_steer_pol_b = -1;
+            break;
+        case '3':// REAR
+            g_steer_pol_f = 0;
+            g_steer_pol_b = 1;
+            break;
+        default:
+            g_steer_pol_f = 1;
+            g_steer_pol_b = 0;
+            break;
         }
-        else if(buff[3] == '2'){
-            g_mode_4ws = -1;
-        }
-        else{
-            g_mode_4ws = 0;
-        } 
         // 値の解釈
         if( HexToUint16(&buff[1], &val, 2) != 0 ) break;
         sval = (int)((signed char)val);
@@ -329,8 +344,8 @@ void SerialCom_callback(char* buff)
         if(drive_mode == MODE_CAR)
         {
             servo_ctrl(0, sval);
-            servo_ctrl(1, sval);
-            servo_ctrl(2, g_mode_4ws * sval);
+            servo_ctrl(1, g_steer_pol_f * sval);
+            servo_ctrl(2, g_steer_pol_b * sval);
         }
         // 戦車モードの場合
         else
