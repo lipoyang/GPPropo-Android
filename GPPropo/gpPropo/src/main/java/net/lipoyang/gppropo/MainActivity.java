@@ -16,6 +16,8 @@
 
 package net.lipoyang.gppropo;
 
+import android.Manifest;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.bluetooth.BluetoothGattCharacteristic;
 
@@ -23,6 +25,8 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Toast;
@@ -93,6 +97,10 @@ public class MainActivity extends Activity implements PropoListener{
     public synchronized void onResume() {
         super.onResume();
         if(DEBUGGING) Log.e(TAG, "+ ON RESUME +");
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestAppPermissions();
+        }
 
         // 4WS Mode
         SharedPreferences data = getSharedPreferences("DataSave", Context.MODE_PRIVATE);
@@ -299,6 +307,42 @@ public class MainActivity extends Activity implements PropoListener{
                     propoView.setBtStatus(btState);
                 }
             }
+        }
+    }
+
+    private static final int REQ_CODE_ALLOW_PERMISSIONS = 100;
+
+    @TargetApi(Build.VERSION_CODES.M)
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == REQ_CODE_ALLOW_PERMISSIONS) {
+            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(MainActivity.this, R.string.msg_denied_permissions, Toast.LENGTH_LONG).show();
+                finish();
+            } else {
+            }
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
+
+    @TargetApi(Build.VERSION_CODES.M)
+    private void requestAppPermissions() {
+
+        String[] requestItems = null;
+
+        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission_group.STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestItems = new String[] {Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+        } else if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestItems = new String[] {Manifest.permission.ACCESS_COARSE_LOCATION};
+        } else if (checkSelfPermission(Manifest.permission_group.STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestItems = new String[] {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+        }
+
+        if (requestItems != null) {
+            requestPermissions(requestItems, REQ_CODE_ALLOW_PERMISSIONS);
         }
     }
 }

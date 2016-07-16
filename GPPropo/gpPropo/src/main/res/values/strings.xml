@@ -15,6 +15,7 @@
 
 <resources>
     <string name="app_name">GP Propo</string>
+    <string name="msg_denied_permissions">Finish application because not allowed Location Permission or Storage Permission.</string>
 
     <!--  MyeongWol -->
 
