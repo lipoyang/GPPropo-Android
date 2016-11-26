@@ -16,18 +16,14 @@
 
 package net.lipoyang.gppropo;
 
-import android.app.Activity;
 import android.bluetooth.BluetoothGattCharacteristic;
 
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -38,14 +34,10 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.uxxu.konashi.lib.Konashi;
-import com.uxxu.konashi.lib.KonashiListener;
-import com.uxxu.konashi.lib.KonashiManager;
+import net.lipoyang.gpkonashi_lib.GPkonashi;
+import net.lipoyang.gpkonashi_lib.GPkonashiListener;
+import net.lipoyang.gpkonashi_lib.GPkonashiManager;
 
-import org.jdeferred.DoneCallback;
-import org.jdeferred.FailCallback;
-
-import info.izumin.android.bletia.BletiaException;
 
 public class SettingActivity extends AppCompatActivity
         implements View.OnClickListener, NumericUpDownListener,
@@ -60,7 +52,7 @@ public class SettingActivity extends AppCompatActivity
     private static final boolean DEBUGGING = true;
 
     // Konashi
-    private KonashiManager mKonashiManager;
+    private GPkonashiManager mGPManager;
 
     // Bluetooth state
     private BLEStatus btState = BLEStatus.DISCONNECTED;
@@ -163,7 +155,8 @@ public class SettingActivity extends AppCompatActivity
         }
 
         // Konashi singleton
-        mKonashiManager = Konashi.getManager();
+        mGPManager = GPkonashi.getManager();
+
         serialReceiver = new SerialReceiver();
         serialReceiver.setListener(this);
     }
@@ -179,16 +172,18 @@ public class SettingActivity extends AppCompatActivity
         if(DEBUGGING) Log.e(TAG, "+ ON RESUME +");
 
         // add Konashi event listener
-        mKonashiManager.addListener(mKonashiListener);
+        mGPManager.registerListener(mGPListener);
 
-        btState = mKonashiManager.isReady() ? BLEStatus.CONNECTED : BLEStatus.DISCONNECTED;
+        if (mGPManager.isConnecting()) btState = BLEStatus.CONNECTING;
+        else if (mGPManager.isConnected()) btState = BLEStatus.CONNECTED;
+        else btState = BLEStatus.DISCONNECTED;
 
         sendCommand("#AL$");
     }
     @Override
     public synchronized void onPause() {
         // remove Konashi event listener
-        mKonashiManager.removeListener(mKonashiListener);
+        mGPManager.unregisterListener(mGPListener);
 
         super.onPause();
         if(DEBUGGING) Log.e(TAG, "- ON PAUSE -");
@@ -296,16 +291,9 @@ public class SettingActivity extends AppCompatActivity
 
     private void sendCommand(String command)
     {
-        if(!mKonashiManager.isConnected()) return;
+        if (!mGPManager.isConnected()) return;
 
-        byte [] bCommand=command.getBytes();
-        mKonashiManager.uartWrite(bCommand)
-                .fail(new FailCallback<BletiaException>() {
-                    @Override
-                    public void onFail(BletiaException result) {
-                        //Toast.makeText(self, result.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+        mGPManager.uartWrite(command);
     }
 
     // On select 4WS spinner
@@ -400,52 +388,27 @@ public class SettingActivity extends AppCompatActivity
         }
     }
 
-    /**
-     * Konashi's Event Listener
-     */
-    private final KonashiListener mKonashiListener = new KonashiListener() {
+    private final GPkonashiListener mGPListener = new GPkonashiListener() {
         @Override
-        public void onConnect(KonashiManager manager) {
-            // Connected!
+        public void onConnect(GPkonashiManager manager) {
             btState = BLEStatus.CONNECTED;
-
-            mKonashiManager.uartMode(Konashi.UART_ENABLE)
-                    .then(new DoneCallback<BluetoothGattCharacteristic>() {
-                        @Override
-                        public void onDone(BluetoothGattCharacteristic result) {
-                            mKonashiManager.uartBaudrate(Konashi.UART_RATE_38K4);
-
-                        }
-                    })
-                    .fail(new FailCallback<BletiaException>() {
-                        @Override
-                        public void onFail(BletiaException result) {
-                            Toast.makeText(self, result.getMessage(), Toast.LENGTH_SHORT).show();
-                        }
-                    });
         }
+
         @Override
-        public void onDisconnect(KonashiManager manager) {
+        public void onDisconnect(GPkonashiManager manager) {
             // Disconnected!
             btState = BLEStatus.DISCONNECTED;
             self.finish();
         }
+
         @Override
-        public void onError(KonashiManager manager, BletiaException e) {
+        public void onError(GPkonashiManager manager, int error) {
 
         }
-        @Override
-        public void onUpdatePioOutput(KonashiManager manager, int value) {
 
-        }
         @Override
-        public void onUpdateUartRx(KonashiManager manager, byte[] value) {
-            // mResultText.setText(new String(value));
+        public void onUpdateUartRx(GPkonashiManager manager, byte[] value) {
             serialReceiver.put(value);
-        }
-        @Override
-        public void onUpdateBatteryLevel(KonashiManager manager, int level) {
-
         }
     };
 }

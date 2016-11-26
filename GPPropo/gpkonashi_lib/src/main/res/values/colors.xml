@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gpkonashi_lib_devlist_item_name">#333333</color>
+    <color name="gpkonashi_lib_devlist_item_addr">#777777</color>
+    <color name="gpkonashi_lib_dialog_finding_text">#888888</color>
+    <color name="gpkonashi_lib_dialog_not_found_text">#333333</color>
+</resources>
