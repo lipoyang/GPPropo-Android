@@ -135,7 +135,8 @@ public class KonashiScanner {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH)
     private void onFoundKonashi(BluetoothDevice device, int rssi) {
-        if (!device.getName().startsWith("konashi") || mListener == null) return;
+        //if (!device.getName().startsWith("konashi") || mListener == null) return;
+        if (!mKonashiOnly || !device.getName().startsWith("konashi") || mListener != null)
 
         mListener.onFoundKonashi(device, rssi);
     }
