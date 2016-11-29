@@ -27,7 +27,10 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.widget.Toast;
 
 import net.lipoyang.gpkonashi_lib.GPkonashi;
@@ -61,6 +64,15 @@ public class MainActivity extends Activity implements PropoListener{
     private final int MODE_COMMON = 1;
     private final int MODE_REVERSE = 2;
     private final int MODE_REAR = 3;
+
+    // for JoyStick
+    private final int REPEAT_INTERVAL =10; // [ms]
+    private float jsFb = 0.0f;
+    private float jsLr = 0.0f;
+    private boolean isFbRepeat = false;
+    private boolean isLrRepeat = false;
+    private final Handler handlerFb = new Handler();
+    private final Handler handlerLr = new Handler();
 
     //***** onCreate, onStart, onResume, onPause, onStop, onDestroy
     
@@ -177,10 +189,7 @@ public class MainActivity extends Activity implements PropoListener{
         
         // send the Koshian a message.
         if (update){
-            int bFB = (int)(fb * 127);
-            if(bFB<0) bFB += 256;
-            String command = "#D" + String.format("%02X", bFB) + "$";
-            mGPManager.uartWrite(command);
+            throttle(fb);
             lastUpdateTimeFB = System.currentTimeMillis();
         }
     }
@@ -196,14 +205,126 @@ public class MainActivity extends Activity implements PropoListener{
         
         // send the Koshian a message.
         if (update){
-            int bLR = (int)(lr * 127);
-            if(bLR<0) bLR += 256;
-            String command = "#T" + String.format("%02X", bLR) + String.format("%1d", mode4ws) + "$";
-            mGPManager.uartWrite(command);
+            steering(lr);
             lastUpdateTimeLR = System.currentTimeMillis();
         }
     }
+    
+    // On Joystick event
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event){
+        // boolean handled = false;
 
+        // Left joystick event
+        float x = event.getAxisValue(MotionEvent.AXIS_X);
+        float y = event.getAxisValue(MotionEvent.AXIS_Y);
+        if(Math.abs(x)<0.01) x=0;
+        if(Math.abs(y)<0.01) y=0;
+
+        jsFb = -y;
+        if(jsFb == 0){
+            isFbRepeat = false;
+            onTouchFbStick(0);
+        }else{
+            if(!isFbRepeat){
+                isFbRepeat = true;
+                handlerFb.post(repeatFb);
+            }
+        }
+
+        jsLr = x;
+        if(jsLr == 0){
+            isLrRepeat = false;
+            onTouchLrStick(0);
+            //steering(0);
+        }else{
+            if(!isLrRepeat){
+                //steering(jsLr);
+                onTouchLrStick(jsLr);
+                isLrRepeat = true;
+                handlerLr.postDelayed(repeatLr, REPEAT_INTERVAL);
+            }
+        }
+
+        // forward to propo event handlers
+        //if(mKonashiManager.isConnected()){
+        //    onTouchFbStick(-y);
+        //    onTouchLrStick(x);
+        //}
+
+        // log
+        String msg = "(x,y)=" + x + "," + y;
+        Log.e("GamePad", msg);
+
+        return false; //handled || super.onGenericMotionEvent(event);
+    }
+    // repeat joystick event (FB)
+    final Runnable repeatFb = new Runnable() {
+        @Override
+        public void run() {
+            if (!isFbRepeat) {
+                return;
+            }
+            onTouchFbStick(jsFb);
+            handlerFb.postDelayed(this, REPEAT_INTERVAL);
+        }
+    };
+    // repeat joystick event (LR)
+    final Runnable repeatLr = new Runnable() {
+        @Override
+        public void run() {
+            if (!isLrRepeat) {
+                return;
+            }
+            //steering(jsLr);
+            onTouchLrStick(jsLr);
+            // log
+            String msg = "jsLr=" +jsLr;
+            Log.e("GamePad", msg);
+            handlerLr.postDelayed(this, REPEAT_INTERVAL);
+        }
+    };
+
+    /*
+    // On gamepad button event
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event){
+        boolean handled = false;
+
+        String msg = "keyCode:" + keyCode;
+        Log.e("GamePad", msg);
+
+        return handled || super.onKeyDown(keyCode, event);
+    }
+    */
+
+    // throttle
+    // fb = -1.0 ... +1.0
+    private void throttle(float fb)
+    {
+        if(!mGPManager.isConnected()) return;
+
+        int bFB = (int)(fb * 127);
+        if(bFB<0) bFB += 256;
+        String command = "#D" + String.format("%02X", bFB) + "$";
+        mGPManager.uartWrite(command);
+    }
+
+    // steering
+    // lr = -1.0 ... +1.0
+    private void steering(float lr)
+    {
+        if(!mGPManager.isConnected()) return;
+
+        int bLR = (int)(lr * 127);
+        if(bLR<0) bLR += 256;
+        String command = "#T" + String.format("%02X", bLR) + String.format("%1d", mode4ws) + "$";
+        mGPManager.uartWrite(command);
+    }
+    
+    /**
+     * Konashi's Event Listener
+     */
     private final GPkonashiListener mGPListener = new GPkonashiListener() {
         @Override
         public void onConnect(GPkonashiManager manager) {

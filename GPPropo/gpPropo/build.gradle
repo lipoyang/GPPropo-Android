@@ -8,8 +8,8 @@ android {
         applicationId "net.lipoyang.gppropo"
         minSdkVersion 18
         targetSdkVersion 23
-        versionCode 2
-        versionName "1.1"
+        versionCode 4
+        versionName "2.0"
     }
 
     buildTypes {
