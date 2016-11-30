@@ -352,7 +352,7 @@ public class MainActivity extends Activity implements PropoListener{
 
         @Override
         public void onError(GPkonashiManager manager, int error) {
-            Toast.makeText(MainActivity.this, (CharSequence)String.format("konashi error: %d", error), Toast.LENGTH_SHORT).show();
+            Log.e(TAG, String.format("konashi error: %d", error));
         }
 
         @Override

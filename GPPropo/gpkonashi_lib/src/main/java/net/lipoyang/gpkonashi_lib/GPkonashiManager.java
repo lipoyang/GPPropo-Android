@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.os.Handler;
 import android.support.annotation.RequiresPermission;
+import android.util.Log;
 
 import net.lipoyang.gpkonashi_lib.scanner.KonashiScanDialog;
 
@@ -257,7 +258,7 @@ public class GPkonashiManager extends BluetoothGattCallback {
             mIsConnecting = false;
             if (mListener != null) mListener.onConnect(this);
         } else if (characteristic.getUuid().equals(GPkonashiUuid.UART_TX)) {
-            if (status != BluetoothGatt.GATT) onError(ERROR_FAILED_WRITE_VALUE);
+            if (status != BluetoothGatt.GATT_SUCCESS) onError(ERROR_FAILED_WRITE_VALUE);
         }
     }
 
