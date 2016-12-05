@@ -57,8 +57,7 @@ GPduinoに関する詳細は、[GPduino特設ページ](http://lipoyang.net/gpdu
 
 ## 開発環境と依存ライブラリ
 * このアプリは、Android Studioで開発されました。
-* ~~このアプリは、ユカイ工学の[Konashi Android SDK](https://github.com/YUKAI/konashi-android-sdk)に依存しています。~~
-  * Android 6以降でKonashi Android SDKに起因すると思われる不具合が発生したため、現在は独自実装のライブラリを使用しています。
+* このアプリは、ユカイ工学の[Konashi Android SDK](https://github.com/YUKAI/konashi-android-sdk)に依存しています。
 
 <!--
 * Eclipse環境の[旧Konashi Android SDK](https://github.com/YUKAI/konashi-v1-android-sdk)をベースに作成したアプリのソースは[こちら](http://licheng.sakura.ne.jp/gpduino/KoshiPropo_20151102.zip)にありますが、今後はメンテナンスされません。
