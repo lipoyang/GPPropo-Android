@@ -1,1 +1,1 @@
-include ':gpPropo', ':gpkonashi_lib'
+include ':gpPropo'

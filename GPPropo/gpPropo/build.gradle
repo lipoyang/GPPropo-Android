@@ -8,8 +8,8 @@ android {
         applicationId "net.lipoyang.gppropo"
         minSdkVersion 18
         targetSdkVersion 23
-        versionCode 4
-        versionName "2.0"
+        versionCode 5
+        versionName "2.1"
     }
 
     buildTypes {
@@ -21,10 +21,9 @@ android {
 }
 
 dependencies {
-//    compile 'com.uxxu.konashi:konashi-android-sdk:1.0.1'
+    compile 'com.uxxu.konashi:konashi-android-sdk:2.0.0'
     compile 'com.android.support:support-v4:23.1.1'
     compile 'com.android.support:appcompat-v7:23.1.1'
     compile 'com.android.support:gridlayout-v7:23.1.1'
     compile 'com.android.support:design:23.1.1'
-    compile project(':gpkonashi_lib')
 }

@@ -19,6 +19,7 @@ package net.lipoyang.gppropo;
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.bluetooth.BluetoothGattCharacteristic;
 
 //import android.content.Intent;
 import android.content.Context;
@@ -33,9 +34,14 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.widget.Toast;
 
-import net.lipoyang.gpkonashi_lib.GPkonashi;
-import net.lipoyang.gpkonashi_lib.GPkonashiListener;
-import net.lipoyang.gpkonashi_lib.GPkonashiManager;
+import com.uxxu.konashi.lib.Konashi;
+import com.uxxu.konashi.lib.KonashiListener;
+import com.uxxu.konashi.lib.KonashiManager;
+
+import org.jdeferred.DoneCallback;
+import org.jdeferred.FailCallback;
+
+import info.izumin.android.bletia.BletiaException;
 
 public class MainActivity extends Activity implements PropoListener{
 
@@ -46,7 +52,7 @@ public class MainActivity extends Activity implements PropoListener{
     private static final boolean DEBUGGING = true;
     
     // Konashi
-    private GPkonashiManager mGPManager;
+    private KonashiManager mKonashiManager;
     
     // Propo View
     private PropoView propoView;
@@ -64,6 +70,9 @@ public class MainActivity extends Activity implements PropoListener{
     private final int MODE_COMMON = 1;
     private final int MODE_REVERSE = 2;
     private final int MODE_REAR = 3;
+
+    // flag whether servo setting is loaded or not
+    //private boolean isSettingLoaded = false;
 
     // for JoyStick
     private final int REPEAT_INTERVAL =10; // [ms]
@@ -87,8 +96,8 @@ public class MainActivity extends Activity implements PropoListener{
         propoView.setParent(this,this);
         
         // initialize Konashi
-        GPkonashi.initialize(getApplicationContext());
-        mGPManager = GPkonashi.getManager();
+        Konashi.initialize(getApplicationContext());
+        mKonashiManager = Konashi.getManager();
     }
     
     @Override
@@ -110,12 +119,9 @@ public class MainActivity extends Activity implements PropoListener{
         lastUpdateTimeLR = 0;
 
         // add Konashi event listener
-        mGPManager.registerListener(mGPListener);
+        mKonashiManager.addListener(mKonashiListener);
 
-        // Bluetooth Status
-        if (mGPManager.isConnecting()) btState = BLEStatus.CONNECTING;
-        else if (mGPManager.isConnected()) btState= BLEStatus.CONNECTED;
-        else btState = BLEStatus.DISCONNECTED;
+        btState = mKonashiManager.isReady() ? BLEStatus.CONNECTED : BLEStatus.DISCONNECTED;
         propoView.setBtStatus(btState);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -125,7 +131,7 @@ public class MainActivity extends Activity implements PropoListener{
     @Override
     public synchronized void onPause() {
         // remove Konashi event listener
-        mGPManager.unregisterListener(mGPListener);
+        mKonashiManager.removeListener(mKonashiListener);
         
         super.onPause();
         if(DEBUGGING) Log.e(TAG, "- ON PAUSE -");
@@ -141,8 +147,14 @@ public class MainActivity extends Activity implements PropoListener{
         new Thread(new Runnable() {
             @Override
             public void run() {
-                if (mGPManager.isConnected()) {
-                    GPkonashi.close();
+                if(mKonashiManager.isConnected()){
+                    mKonashiManager.reset()
+                            .then(new DoneCallback<BluetoothGattCharacteristic>() {
+                                @Override
+                                public void onDone(BluetoothGattCharacteristic result) {
+                                    mKonashiManager.disconnect();
+                                }
+                            });
                 }
             }
         }).start();
@@ -153,28 +165,30 @@ public class MainActivity extends Activity implements PropoListener{
     // On touch PropoView's Bluetooth Button
     public void onTouchBtButton()
     {
-        // do nothing if connecting
-        if (mGPManager.isConnecting()) return;
-
-        if (!mGPManager.isConnected()) {
-            // Bluetooth Status: connecting
-            btState = BLEStatus.CONNECTING;
-            propoView.setBtStatus(btState);
-
-            // find konashi
-            mGPManager.find(this);
-        } else {
-            // disconnet konashi
-            mGPManager.disconnect();
+    	// Connecting
+        if(!mKonashiManager.isReady()){
+        	btState = BLEStatus.CONNECTING;
+        	propoView.setBtStatus(btState);
+        	
+            // search Koshian, and open a selection dialog
+            mKonashiManager.find(this, true);
+        }
+        // Disconnecting
+        else {
+            // disconnect Koshian
+            mKonashiManager.disconnect();
         }
     }
     
     // On touch PropoView's Setting Button
     public void onTouchSetButton()
     {
-        if (mGPManager.isConnected()) {
+        // go to SettingActivity
+        if(mKonashiManager.isReady()){
             Intent intent = new Intent(MainActivity.this, SettingActivity.class);
+            //intent.putExtra("isSettingLoaded", isSettingLoaded);
             startActivity(intent);
+            //isSettingLoaded = true;
         }
     }
     
@@ -182,7 +196,7 @@ public class MainActivity extends Activity implements PropoListener{
     // fb = -1.0 ... +1.0
     public void onTouchFbStick(float fb)
     {
-        if (!mGPManager.isConnected()) return;
+        if(!mKonashiManager.isConnected()) return;
         boolean update = false;
         if(lastUpdateTimeFB + 50 < System.currentTimeMillis()) update = true;
         if(fb == 0.0) update = true;
@@ -198,7 +212,7 @@ public class MainActivity extends Activity implements PropoListener{
     // lr = -1.0 ... +1.0
     public void onTouchLrStick(float lr)
     {
-        if (!mGPManager.isConnected()) return;
+        if(!mKonashiManager.isConnected()) return;
         boolean update = false;
         if(lastUpdateTimeLR + 50 < System.currentTimeMillis()) update = true;
         if(lr == 0.0) update = true;
@@ -302,63 +316,121 @@ public class MainActivity extends Activity implements PropoListener{
     // fb = -1.0 ... +1.0
     private void throttle(float fb)
     {
-        if(!mGPManager.isConnected()) return;
+        if(!mKonashiManager.isConnected()) return;
 
         int bFB = (int)(fb * 127);
         if(bFB<0) bFB += 256;
-        String command = "#D" + String.format("%02X", bFB) + "$";
-        mGPManager.uartWrite(command);
+        String command
+                = "#D" + String.format("%02X", bFB) + "$";
+        byte [] bCommand=command.getBytes();
+        mKonashiManager.uartWrite(bCommand)
+                .fail(new FailCallback<BletiaException>() {
+                    @Override
+                    public void onFail(BletiaException result) {
+                        //Toast.makeText(self, result.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     // steering
     // lr = -1.0 ... +1.0
     private void steering(float lr)
     {
-        if(!mGPManager.isConnected()) return;
+        if(!mKonashiManager.isConnected()) return;
 
         int bLR = (int)(lr * 127);
         if(bLR<0) bLR += 256;
-        String command = "#T" + String.format("%02X", bLR) + String.format("%1d", mode4ws) + "$";
-        mGPManager.uartWrite(command);
+        String command
+                = "#T" + String.format("%02X", bLR) + String.format("%1d", mode4ws) + "$";
+        byte[] bCommand = command.getBytes();
+        mKonashiManager.uartWrite(bCommand)
+                .fail(new FailCallback<BletiaException>() {
+                    @Override
+                    public void onFail(BletiaException result) {
+                        //Toast.makeText(self, result.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
     
     /**
      * Konashi's Event Listener
      */
-    private final GPkonashiListener mGPListener = new GPkonashiListener() {
+    private final KonashiListener mKonashiListener = new KonashiListener() {
         @Override
-        public void onConnect(GPkonashiManager manager) {
+        public void onConnect(KonashiManager manager) {
             // Connected!
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    btState = BLEStatus.CONNECTED;
-                    propoView.setBtStatus(btState);
-                }
-            });
+            btState = BLEStatus.CONNECTED;
+            propoView.setBtStatus(btState);
+            //isSettingLoaded = false;
+            setupKonashiCnt=0;
+            setupKonashi();
         }
-
+        private int setupKonashiCnt;
+        private void setupKonashi(){
+            mKonashiManager.uartMode(Konashi.UART_ENABLE)
+                    .then(new DoneCallback<BluetoothGattCharacteristic>() {
+                        @Override
+                        public void onDone(BluetoothGattCharacteristic result) {
+                            mKonashiManager.uartBaudrate(Konashi.UART_RATE_38K4);
+                        }
+                    })
+                    .fail(new FailCallback<BletiaException>() {
+                        @Override
+                        public void onFail(BletiaException result) {
+                            if(DEBUGGING) Log.e(TAG, "Koshian setup failed!");
+                            setupKonashiCnt++;
+                            if(setupKonashiCnt>=3){
+                                Toast.makeText(self, result.getMessage(), Toast.LENGTH_SHORT).show();
+                            }else{
+                                setupKonashi(); // retry
+                            }
+                        }
+                    });
+        }
         @Override
-        public void onDisconnect(GPkonashiManager manager) {
+        public void onDisconnect(KonashiManager manager) {
             // Disconnected!
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
+            btState = BLEStatus.DISCONNECTED;
+            propoView.setBtStatus(btState);
+        }
+        @Override
+        public void onError(KonashiManager manager, BletiaException e) {
+            
+        }
+        @Override
+        public void onUpdatePioOutput(KonashiManager manager, int value) {
+            
+        }
+        @Override
+        public void onUpdateUartRx(KonashiManager manager, byte[] value) {
+            // mResultText.setText(new String(value));
+        }
+        @Override
+        public void onUpdateBatteryLevel(KonashiManager manager, int level) {
+            
+        }
+        @Override
+        public void onUpdateSpiMiso(KonashiManager manager, byte[] value) {
+
+        }
+    };
+
+    // This is just a last resort. Versiion 2 SDK has no onCancelKonashi
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        if(hasFocus){
+            Log.e(TAG, "onWindowFocusChanged [true]");
+            String pName = mKonashiManager.getPeripheralName();
+            Log.e(TAG, "pName = [" + pName + "]");
+
+            if(btState == BLEStatus.CONNECTING){
+                if(mKonashiManager.getPeripheralName().equals("")){
                     btState = BLEStatus.DISCONNECTED;
                     propoView.setBtStatus(btState);
                 }
-            });
+            }
         }
-
-        @Override
-        public void onError(GPkonashiManager manager, int error) {
-            Log.e(TAG, String.format("konashi error: %d", error));
-        }
-
-        @Override
-        public void onUpdateUartRx(GPkonashiManager manager, byte[] value) {
-        }
-    };
+    }
 
     // permission request
 
